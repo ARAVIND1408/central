@@ -115,7 +115,7 @@
                 refreshBtn.disabled = true;
                 refreshBtn.textContent = '⏳ Loading...';
 
-                const response = await fetch('http://localhost:5000/api/water-consumption');
+                const response = await fetch('/api/water-consumption');
                 
                 if (!response.ok) {
                     const errorData = await response.json().catch(() => ({}));
