@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Distribution Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="dashboard">
+        <h1>🏠 Smart Water Distribution System</h1>
+
+        <div class="controls">
+            <div class="search-container">
+                <input type="text" id="houseSearch" placeholder="Enter House ID to search...">
+                <button onclick="filterHouse()">Search</button>
+                <button onclick="clearFilter()">Show All</button>
+            </div>
+            <button class="refresh-btn" onclick="fetchData()">🔄 Refresh Data</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>House ID</th>
+                    <th>Water Used (L)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="waterData">
+                <!-- Data loads here -->
+            </tbody>
+        </table>
+
+        <div class="summary">
+            <p>Total Water Used: <span id="totalWater">0</span> liters</p>
+            <p>Number of Houses: <span id="houseCount">0</span></p>
+        </div>
+
+        <footer>
+            Last updated: <span id="lastUpdated">--</span>
+        </footer>
+    </div>
+
+    <script>
+        let currentData = [];
+
+        function showError(title, message) {
+            clearError();
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.innerHTML = `
+                <strong>${title}</strong>: ${message}
+                <button onclick="clearError()" class="close-error">×</button>
+            `;
+            document.querySelector('.dashboard').prepend(errorDiv);
+        }
+
+        function clearError() {
+            const errorDiv = document.querySelector('.error-message');
+            if (errorDiv) errorDiv.remove();
+        }
+
+        function updateTable(data) {
+            const tbody = document.getElementById('waterData');
+            tbody.innerHTML = '';
+
+            if (!data || data.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="no-data">No water consumption data available</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            data.forEach(entry => {
+                const tr = document.createElement('tr');
+                const status = entry.WaterUsed > 10 ? '❌ Exceeded' : '✅ OK';
+                tr.innerHTML = `
+                    <td>${entry.HouseID}</td>
+                    <td>${entry.WaterUsed.toFixed(2)}</td>
+                    <td>${status}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateSummary(data) {
+            const total = data.reduce((sum, entry) => sum + entry.WaterUsed, 0);
+            document.getElementById('totalWater').textContent = total.toFixed(2);
+            document.getElementById('houseCount').textContent = data.length;
+        }
+
+        function filterHouse() {
+            const searchTerm = document.getElementById('houseSearch').value.trim().toLowerCase();
+            const filteredData = searchTerm 
+                ? currentData.filter(entry => entry.HouseID.toLowerCase().includes(searchTerm))
+                : currentData;
+            
+            updateTable(filteredData);
+            updateSummary(filteredData);
+        }
+
+        function clearFilter() {
+            document.getElementById('houseSearch').value = '';
+            updateTable(currentData);
+            updateSummary(currentData);
+        }
+
+        async function fetchData() {
+            try {
+                // Show loading state
+                const refreshBtn = document.querySelector('.refresh-btn');
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '⏳ Loading...';
+
+                const response = await fetch('http://localhost:5000/api/water-consumption');
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError('Server Error', data.details || data.error);
+                    return;
+                }
+
+                currentData = data;
+                updateTable(data);
+                updateSummary(data);
+                document.getElementById('lastUpdated').textContent = new Date().toLocaleTimeString();
+                clearError();
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                showError(
+                    'Connection Error', 
+                    `Failed to load data. ${error.message || 'Please check your connection and try again.'}`
+                );
+            } finally {
+                // Reset refresh button
+                const refreshBtn = document.querySelector('.refresh-btn');
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh Data';
+            }
+        }
+
+        // Initial load
+        fetchData();
+    </script>
+</body>
+</html>
